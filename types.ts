@@ -27,6 +27,7 @@ export interface Player {
   id: string;
   name: string;
   balance: number;
+  topUpAmount: number; // Added: Amount of "Oisosi" added
   currentBet: number;
   isDealer: boolean;
   dice: [number, number, number];

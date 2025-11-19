@@ -3,8 +3,6 @@ import { Phase, Player, GameState, HandType, HandResult } from './types';
 import { rollDice, evaluateHand, calculateOutcome } from './services/gameLogic';
 import { DiceDisplay } from './components/DiceDisplay';
 
-const STARTING_BALANCE = 20000;
-
 // UI Components
 const Card: React.FC<{ children: React.ReactNode; className?: string; highlight?: boolean }> = ({ children, className = "", highlight = false }) => (
   <div className={`glass-panel rounded-xl p-6 ${highlight ? 'border-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.2)]' : ''} ${className}`}>
@@ -12,12 +10,13 @@ const Card: React.FC<{ children: React.ReactNode; className?: string; highlight?
   </div>
 );
 
-const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'action' }> = ({ children, variant = 'primary', className = "", ...props }) => {
+const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: 'primary' | 'secondary' | 'danger' | 'action' | 'success' }> = ({ children, variant = 'primary', className = "", ...props }) => {
   const baseStyle = "font-bold rounded transition-all duration-200 transform active:scale-95 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed";
   const variants = {
     primary: "bg-gradient-to-b from-yellow-500 to-yellow-700 text-black hover:from-yellow-400 hover:to-yellow-600 border-b-4 border-yellow-800",
     secondary: "bg-gray-700 text-white hover:bg-gray-600 border-b-4 border-gray-900",
     danger: "bg-red-700 text-white hover:bg-red-600 border-b-4 border-red-900",
+    success: "bg-green-700 text-white hover:bg-green-600 border-b-4 border-green-900",
     action: "bg-gradient-to-b from-blue-600 to-blue-800 text-white hover:from-blue-500 hover:to-blue-700 border-b-4 border-blue-900 text-xl py-4"
   };
 
@@ -25,6 +24,62 @@ const Button: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { variant
     <button className={`${baseStyle} ${variants[variant]} ${className}`} {...props}>
       {children}
     </button>
+  );
+};
+
+// 特殊役演出用コンポーネント
+const CutInOverlay: React.FC<{ hand: HandResult | null; onClose: () => void }> = ({ hand, onClose }) => {
+  useEffect(() => {
+    if (hand) {
+      const timer = setTimeout(onClose, 2500); // 2.5秒後に自動で消える
+      return () => clearTimeout(timer);
+    }
+  }, [hand, onClose]);
+
+  if (!hand) return null;
+
+  // 通常の役なら表示しない（あるいは控えめに）
+  const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI].includes(hand.type);
+  if (!isSpecial) return null;
+
+  let bgClass = "bg-black/80";
+  let textClass = "text-white";
+  let subText = "";
+
+  switch (hand.type) {
+    case HandType.PINZORO:
+      bgClass = "bg-red-900/90";
+      textClass = "text-yellow-400 drop-shadow-[0_0_20px_rgba(250,204,21,0.8)]";
+      subText = "五倍付け!!";
+      break;
+    case HandType.ARASHI:
+      bgClass = "bg-blue-900/90";
+      textClass = "text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]";
+      subText = "三倍付け!!";
+      break;
+    case HandType.SHIGORO:
+      bgClass = "bg-green-900/90";
+      textClass = "text-green-300 drop-shadow-[0_0_20px_rgba(74,222,128,0.8)]";
+      subText = "即勝利!!";
+      break;
+    case HandType.HIFUMI:
+      bgClass = "bg-purple-900/90";
+      textClass = "text-purple-300 drop-shadow-[0_0_20px_rgba(192,132,252,0.8)]";
+      subText = "倍払い...";
+      break;
+  }
+
+  return (
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center ${bgClass} animate-flash overflow-hidden`}>
+      <div className="relative w-full text-center animate-cut-in">
+        <h1 className={`text-9xl font-brush font-black ${textClass} tracking-widest whitespace-nowrap`}>
+          {hand.label.split(' ')[0]} {/* "ピンゾロ (5倍)" から "ピンゾロ" だけ取る簡易処理 */}
+        </h1>
+        <p className="text-4xl mt-4 font-mincho text-white font-bold tracking-[1em] opacity-90">{subText}</p>
+      </div>
+      {/* パーティクル風の装飾 */}
+      <div className="absolute inset-0 pointer-events-none opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] animate-tumble"></div>
+    </div>
   );
 };
 
@@ -41,6 +96,7 @@ export default function App() {
 
   // --- Setup Phase Input ---
   const [setupNames, setSetupNames] = useState<string[]>(['プレイヤー1', 'プレイヤー2']);
+  const [initialBalance, setInitialBalance] = useState<number>(20000);
 
   const addSetupPlayer = () => {
     if (setupNames.length < 6) setSetupNames([...setupNames, `プレイヤー${setupNames.length + 1}`]);
@@ -60,7 +116,8 @@ export default function App() {
     const initialPlayers: Player[] = setupNames.map((name, idx) => ({
       id: `p-${idx}`,
       name: name.trim() || `Player ${idx + 1}`,
-      balance: STARTING_BALANCE,
+      balance: initialBalance,
+      topUpAmount: 0,
       currentBet: 0,
       isDealer: idx === 0,
       dice: [1, 1, 1],
@@ -90,6 +147,20 @@ export default function App() {
     }));
   };
 
+  const handleTopUp = (playerId: string, amount: number) => {
+     setState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) => {
+        if (p.id !== playerId) return p;
+        return { 
+            ...p, 
+            balance: p.balance + amount,
+            topUpAmount: p.topUpAmount + amount
+        };
+      }),
+    }));
+  };
+
   const confirmBets = () => {
     const dealer = state.players[state.dealerIndex];
     const children = state.players.filter((p) => p.id !== dealer.id);
@@ -114,6 +185,7 @@ export default function App() {
   // --- Action Phase Logic ---
   const currentPlayerId = state.turnOrder[state.currentTurnIndex];
   const currentPlayer = state.players.find(p => p.id === currentPlayerId);
+  const [cutInHand, setCutInHand] = useState<HandResult | null>(null);
 
   const rollAction = useCallback(async () => {
     if (state.isRolling || !currentPlayer) return;
@@ -139,6 +211,13 @@ export default function App() {
     const finalDice = rollDice();
     const handResult = evaluateHand(finalDice);
     
+    // カットイン判定（特殊役の場合、少し待機させる）
+    const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI].includes(handResult.type);
+    
+    if (isSpecial) {
+        setCutInHand(handResult);
+    }
+
     setState(prev => {
       const updatedPlayers = prev.players.map(p => {
         if (p.id !== currentPlayerId) return p;
@@ -230,8 +309,19 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 relative">
         <Card className="max-w-md w-full z-10 border border-yellow-600/30">
-          <h1 className="text-5xl font-mincho font-bold text-yellow-500 mb-2 text-center drop-shadow-lg tracking-widest">租紫<br/><span className="text-2xl font-sans text-white tracking-normal opacity-80">BATTLE</span></h1>
-          <p className="text-center text-gray-400 text-xs mb-8 uppercase tracking-widest">Survival Dice Game</p>
+          <h1 className="text-6xl font-brush font-bold text-yellow-500 mb-4 text-center drop-shadow-lg tracking-widest transform -rotate-3">
+            チンチロ
+          </h1>
+          
+          <div className="mb-6 p-4 bg-black/40 rounded-lg border border-white/10">
+              <label className="block text-xs text-gray-400 mb-1">初期ソシー設定</label>
+              <input 
+                type="number" 
+                value={initialBalance} 
+                onChange={(e) => setInitialBalance(parseInt(e.target.value) || 0)}
+                className="w-full bg-transparent text-right text-xl font-bold text-yellow-200 outline-none font-mono border-b border-gray-600 focus:border-yellow-500"
+              />
+          </div>
           
           <div className="space-y-3 mb-8">
             {setupNames.map((name, idx) => (
@@ -249,7 +339,7 @@ export default function App() {
           </div>
           <div className="flex gap-4 justify-center mb-8">
             <Button variant="secondary" onClick={removeSetupPlayer} disabled={setupNames.length <= 2} className="px-4 py-2 text-sm">人数を減らす</Button>
-            <Button variant="action" onClick={addSetupPlayer} disabled={setupNames.length >= 6} className="px-4 py-2 text-sm bg-none bg-green-700 border-green-900 hover:from-green-600 hover:to-green-800">人数を増やす</Button>
+            <Button variant="success" onClick={addSetupPlayer} disabled={setupNames.length >= 6} className="px-4 py-2 text-sm">人数を増やす</Button>
           </div>
           <Button onClick={startGame} className="w-full py-4 text-xl shadow-[0_0_20px_rgba(234,179,8,0.4)]">
             開帳
@@ -263,17 +353,21 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col max-w-6xl mx-auto relative">
+      <CutInOverlay hand={cutInHand} onClose={() => setCutInHand(null)} />
+
       {/* Header */}
       <header className="flex justify-between items-end px-6 py-4 border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
         <div>
-            <h1 className="text-2xl font-mincho font-bold text-yellow-500 tracking-widest">租紫</h1>
+            <h1 className="text-3xl font-brush font-bold text-yellow-500 tracking-widest">チンチロ</h1>
             <div className="text-xs text-gray-400 uppercase tracking-widest">
                 {state.phase === Phase.BETTING ? 'BETTING PHASE' : state.phase === Phase.ACTION ? 'ACTION PHASE' : 'RESULT'}
             </div>
         </div>
         <div className="text-right">
             <div className="text-xs text-gray-400">現在の親</div>
-            <div className="text-xl font-bold text-yellow-100 font-mincho">{dealer.name}</div>
+            <div className="text-2xl font-bold text-yellow-100 font-mincho bg-red-900/50 px-3 py-1 rounded border border-red-500/30 inline-block">
+                {dealer.name}
+            </div>
         </div>
       </header>
 
@@ -286,9 +380,20 @@ export default function App() {
                 <div className="text-center mb-4">
                     <div className="inline-block px-6 py-2 bg-black/40 rounded-full border border-yellow-500/30 mb-2">
                         <span className="text-yellow-500 text-sm uppercase tracking-widest mr-2">DEALER</span>
-                        <span className="font-bold text-xl">{dealer.name}</span>
+                        <span className="font-bold text-xl font-mincho">{dealer.name}</span>
                     </div>
-                    <p className="text-gray-400 font-mono">所持金: {dealer.balance.toLocaleString()} ソシー</p>
+                    <div className="flex flex-col items-center">
+                        <p className="text-gray-400 font-mono">所持: {dealer.balance.toLocaleString()} ソシー</p>
+                        {dealer.topUpAmount > 0 && <span className="text-xs text-red-400">（追: {dealer.topUpAmount.toLocaleString()}）</span>}
+                    </div>
+                    <div className="mt-2">
+                        <button 
+                            onClick={() => handleTopUp(dealer.id, 10000)}
+                            className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-yellow-500 border border-yellow-900"
+                        >
+                           + 追いソシー
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
@@ -296,9 +401,28 @@ export default function App() {
                         if (p.isDealer) return null;
                         return (
                             <Card key={p.id} className="flex flex-col gap-4 border-t-4 border-t-green-600/50">
-                                <div className="flex justify-between items-center">
-                                    <span className="font-bold text-lg">{p.name}</span>
-                                    <span className="text-xs bg-black/30 px-2 py-1 rounded text-yellow-200 font-mono">{p.balance.toLocaleString()}</span>
+                                <div className="flex justify-between items-start">
+                                    <span className="font-bold text-lg font-mincho">{p.name}</span>
+                                    <div className="text-right">
+                                        <span className="text-xs bg-black/30 px-2 py-1 rounded text-yellow-200 font-mono block">
+                                            {p.balance.toLocaleString()}
+                                        </span>
+                                        {p.topUpAmount > 0 && (
+                                            <span className="text-[10px] text-red-400 block text-right">
+                                                (追: {p.topUpAmount.toLocaleString()})
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* 追いソシーボタン */}
+                                <div className="flex justify-end">
+                                    <button 
+                                        onClick={() => handleTopUp(p.id, 10000)}
+                                        className="text-[10px] bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-yellow-500 border border-yellow-900 flex items-center gap-1"
+                                    >
+                                        <span>💰 追いソシー(+1万)</span>
+                                    </button>
                                 </div>
                                 
                                 <div className="bg-black/20 p-3 rounded-lg border border-black/20 inner-shadow">
@@ -317,7 +441,7 @@ export default function App() {
                                     <button onClick={() => handleBetChange(p.id, 100)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">+100</button>
                                     <button onClick={() => handleBetChange(p.id, 1000)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">+1k</button>
                                     <button onClick={() => handleBetChange(p.id, Math.floor(p.balance / 2))} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">半額</button>
-                                    <button onClick={() => handleBetChange(p.id, p.balance)} className="bg-red-900/50 hover:bg-red-900/80 text-red-200 py-2 rounded text-xs transition border border-red-900">全ツッパ</button>
+                                    <button onClick={() => handleBetChange(p.id, p.balance)} className="bg-red-900/50 hover:bg-red-900/80 text-red-200 py-2 rounded text-xs transition border border-red-900 font-bold">オールイン</button>
                                 </div>
                             </Card>
                         );
@@ -328,7 +452,7 @@ export default function App() {
                     <Button 
                         onClick={confirmBets}
                         disabled={state.players.some(p => !p.isDealer && p.currentBet <= 0)}
-                        className="px-16 py-4 text-2xl shadow-2xl"
+                        className="px-16 py-4 text-2xl shadow-2xl font-mincho tracking-widest"
                     >
                         勝負開始
                     </Button>
@@ -354,14 +478,14 @@ export default function App() {
                              return (
                                  <div key={pid} 
                                     className={`
-                                        px-4 py-2 rounded-full text-sm transition-all duration-300 border
+                                        px-4 py-2 rounded-full text-sm transition-all duration-300 border flex flex-col items-center min-w-[80px]
                                         ${isActive ? 'bg-yellow-600 text-black border-yellow-400 font-bold scale-110 shadow-[0_0_15px_rgba(234,179,8,0.4)] z-10' 
                                         : isDone ? 'bg-black/40 text-gray-500 border-gray-700' 
                                         : 'bg-black/20 text-gray-300 border-gray-600'}
                                     `}
                                  >
-                                     <span className="mr-2">{p.name}</span>
-                                     {p.isDealer ? <span className="text-[10px] px-1 bg-black/20 rounded uppercase">Boss</span> : <span className="font-mono text-[10px] opacity-70">{p.currentBet}</span>}
+                                     <span className="whitespace-nowrap">{p.name}</span>
+                                     {p.isDealer ? <span className="text-[10px] px-1 bg-red-800/50 rounded font-bold text-white">親</span> : <span className="font-mono text-[10px] opacity-70">{p.currentBet}</span>}
                                  </div>
                              )
                         })}
@@ -372,13 +496,15 @@ export default function App() {
                 <div className="relative w-full max-w-3xl flex flex-col items-center justify-center gap-6">
                     
                     <div className="text-center space-y-1 z-10">
-                        <h2 className="text-4xl font-mincho font-bold text-white drop-shadow-md">
+                        <h2 className="text-5xl font-brush font-bold text-white drop-shadow-md flex items-center gap-4">
                             {currentPlayer.name}
-                            <span className="text-lg ml-3 text-yellow-500 opacity-80 font-sans">{currentPlayer.isDealer ? '親' : '子'}</span>
+                            <span className={`text-lg px-3 py-1 rounded ${currentPlayer.isDealer ? 'bg-red-700 text-white' : 'bg-blue-800 text-white'} opacity-80 font-sans`}>
+                                {currentPlayer.isDealer ? '親' : '子'}
+                            </span>
                         </h2>
-                        <div className="h-8">
-                             {currentPlayer.hand && (
-                                 <span className="text-2xl font-bold text-yellow-300 animate-pulse filter drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">
+                        <div className="h-12 flex items-center justify-center">
+                             {currentPlayer.hand && !state.isRolling && !cutInHand && (
+                                 <span className="text-3xl font-bold font-mincho text-yellow-300 animate-stamp filter drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">
                                      {currentPlayer.hand.label}
                                  </span>
                              )}
@@ -393,10 +519,10 @@ export default function App() {
                     {/* Controls */}
                     <div className="w-full max-w-sm z-10 space-y-4">
                          <div className="flex justify-center gap-2 text-gray-400 text-sm uppercase tracking-widest">
-                             <span>Attempts</span>
-                             <div className="flex gap-1">
+                             <span>投擲回数</span>
+                             <div className="flex gap-1 items-center">
                                  {[1,2,3].map(i => (
-                                     <div key={i} className={`w-2 h-2 rounded-full ${i <= currentPlayer.rollCount ? 'bg-red-500' : 'bg-gray-700'}`}></div>
+                                     <div key={i} className={`w-3 h-3 rounded-full border border-black ${i <= currentPlayer.rollCount ? 'bg-red-500 shadow-[0_0_5px_red]' : 'bg-gray-800'}`}></div>
                                  ))}
                              </div>
                          </div>
@@ -404,16 +530,17 @@ export default function App() {
                         {(!currentPlayer.hand || (currentPlayer.hand.type === HandType.MENASHI && currentPlayer.rollCount < 3)) ? (
                             <Button 
                                 onClick={rollAction}
-                                disabled={state.isRolling}
+                                disabled={state.isRolling || cutInHand !== null}
                                 variant="action"
-                                className="w-full py-6 text-2xl rounded-full shadow-[0_0_30px_rgba(37,99,235,0.3)] border-b-8 active:border-b-0 active:translate-y-2"
+                                className="w-full py-6 text-2xl rounded-full shadow-[0_0_30px_rgba(37,99,235,0.3)] border-b-8 active:border-b-0 active:translate-y-2 font-mincho"
                             >
                                 {state.isRolling ? '...' : '賽を振る'}
                             </Button>
                         ) : (
                             <Button 
                                 onClick={finishTurn}
-                                className="w-full py-6 text-2xl bg-gradient-to-b from-green-600 to-green-800 border-green-900 hover:from-green-500 hover:to-green-700 rounded-full shadow-[0_0_30px_rgba(22,163,74,0.3)] animate-bounce"
+                                disabled={cutInHand !== null}
+                                className="w-full py-6 text-2xl bg-gradient-to-b from-green-600 to-green-800 border-green-900 hover:from-green-500 hover:to-green-700 rounded-full shadow-[0_0_30px_rgba(22,163,74,0.3)] animate-bounce font-mincho"
                             >
                                 次へ進む
                             </Button>
@@ -426,22 +553,22 @@ export default function App() {
         {/* RESULT PHASE */}
         {state.phase === Phase.RESULT && (
             <div className="flex-1 flex flex-col items-center w-full max-w-4xl mx-auto">
-                <h2 className="text-4xl font-mincho font-bold text-yellow-500 mb-8 tracking-widest drop-shadow-lg border-b-2 border-yellow-500/30 pb-2 px-8">
+                <h2 className="text-4xl font-brush font-bold text-yellow-500 mb-8 tracking-widest drop-shadow-lg border-b-2 border-yellow-500/30 pb-2 px-8">
                     勝負結果
                 </h2>
                 
                 <div className="w-full space-y-4 mb-12">
                     {/* Dealer Result */}
-                    <Card className="flex items-center justify-between bg-gradient-to-r from-black/60 to-transparent border-l-4 border-l-yellow-500">
+                    <Card className="flex items-center justify-between bg-gradient-to-r from-red-950/80 to-transparent border-l-4 border-l-yellow-500">
                         <div className="flex items-center gap-4">
-                            <div className="bg-yellow-600 text-black font-bold px-3 py-1 rounded text-xs uppercase">Dealer</div>
+                            <div className="bg-red-700 text-white font-bold px-3 py-1 rounded text-sm font-mincho">親</div>
                             <div>
-                                <div className="text-xl font-bold">{dealer.name}</div>
+                                <div className="text-2xl font-bold font-mincho">{dealer.name}</div>
                                 <div className="text-sm text-gray-400">{dealer.hand?.label}</div>
                             </div>
                         </div>
                         <div className="text-right">
-                             <div className={`text-2xl font-bold font-mono ${dealer.resultDiff >= 0 ? 'text-yellow-400' : 'text-red-400'}`}>
+                             <div className={`text-3xl font-bold font-mono ${dealer.resultDiff >= 0 ? 'text-yellow-400' : 'text-red-500'}`}>
                                 {dealer.resultDiff > 0 ? '+' : ''}{dealer.resultDiff.toLocaleString()}
                              </div>
                              <div className="text-xs text-gray-500 font-mono">残: {dealer.balance.toLocaleString()}</div>
@@ -454,8 +581,8 @@ export default function App() {
                              <div key={p.id} className="flex items-center justify-between p-4 bg-white/5 rounded hover:bg-white/10 transition border-b border-white/5">
                                 <div className="flex items-center gap-4">
                                     <div>
-                                        <div className="font-bold">{p.name}</div>
-                                        <div className="text-xs text-gray-400">BET: {p.currentBet.toLocaleString()} | {p.hand?.label}</div>
+                                        <div className="font-bold font-mincho text-lg">{p.name}</div>
+                                        <div className="text-xs text-gray-400">BET: {p.currentBet.toLocaleString()} | <span className="text-white font-bold">{p.hand?.label}</span></div>
                                     </div>
                                 </div>
                                 <div className="text-right">
@@ -471,7 +598,7 @@ export default function App() {
 
                 <Button 
                     onClick={nextGame}
-                    className="px-12 py-4 text-xl rounded-full shadow-2xl"
+                    className="px-12 py-4 text-xl rounded-full shadow-2xl font-mincho"
                 >
                     次の局へ（親交代）
                 </Button>

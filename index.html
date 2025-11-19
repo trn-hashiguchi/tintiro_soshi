@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>So-Si Battle</title>
+    <title>チンチロ</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Shippori+Mincho:wght@700&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&family=Shippori+Mincho:wght@700;900&family=Yuji+Syuku&display=swap');
       
       body {
         font-family: 'Noto Sans JP', sans-serif;
@@ -48,6 +48,9 @@
       .font-mincho {
         font-family: 'Shippori Mincho', serif;
       }
+      .font-brush {
+        font-family: 'Yuji Syuku', serif;
+      }
 
       /* ガラス質感 */
       .glass-panel {
@@ -55,6 +58,35 @@
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);
+      }
+
+      /* カットイン演出 */
+      @keyframes cut-in {
+        0% { transform: scale(2) translateX(-100%); opacity: 0; }
+        15% { transform: scale(1) translateX(0); opacity: 1; }
+        85% { transform: scale(1) translateX(0); opacity: 1; }
+        100% { transform: scale(1.5) translateX(100%); opacity: 0; }
+      }
+      .animate-cut-in {
+        animation: cut-in 2.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+
+      @keyframes stamp {
+        0% { transform: scale(3); opacity: 0; }
+        50% { transform: scale(0.8); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      .animate-stamp {
+        animation: stamp 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+      
+      /* 稲妻のような背景フラッシュ */
+      @keyframes flash-bg {
+        0%, 100% { background-color: transparent; }
+        10%, 30% { background-color: rgba(255, 255, 255, 0.2); }
+      }
+      .animate-flash {
+        animation: flash-bg 0.5s linear;
       }
     </style>
     <script type="importmap">
