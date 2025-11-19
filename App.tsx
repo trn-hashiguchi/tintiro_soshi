@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Phase, Player, GameState, HandType, HandResult } from './types';
-import { rollDice, evaluateHand, calculateOutcome } from './services/gameLogic';
+import { rollDice, evaluateHand, calculateOutcome, getShonbenHand } from './services/gameLogic';
 import { DiceDisplay } from './components/DiceDisplay';
 
 // UI Components
@@ -39,7 +40,7 @@ const CutInOverlay: React.FC<{ hand: HandResult | null; onClose: () => void }> =
   if (!hand) return null;
 
   // 通常の役なら表示しない（あるいは控えめに）
-  const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI].includes(hand.type);
+  const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI, HandType.SHONBEN].includes(hand.type);
   if (!isSpecial) return null;
 
   let bgClass = "bg-black/80";
@@ -60,12 +61,17 @@ const CutInOverlay: React.FC<{ hand: HandResult | null; onClose: () => void }> =
     case HandType.SHIGORO:
       bgClass = "bg-green-900/90";
       textClass = "text-green-300 drop-shadow-[0_0_20px_rgba(74,222,128,0.8)]";
-      subText = "即勝利!!";
+      subText = "二倍付け!!";
       break;
     case HandType.HIFUMI:
       bgClass = "bg-purple-900/90";
       textClass = "text-purple-300 drop-shadow-[0_0_20px_rgba(192,132,252,0.8)]";
       subText = "倍払い...";
+      break;
+    case HandType.SHONBEN:
+      bgClass = "bg-yellow-900/90";
+      textClass = "text-yellow-200 drop-shadow-[0_0_20px_rgba(200,200,0,0.8)]";
+      subText = "役なし以下...";
       break;
   }
 
@@ -73,11 +79,10 @@ const CutInOverlay: React.FC<{ hand: HandResult | null; onClose: () => void }> =
     <div className={`fixed inset-0 z-[100] flex items-center justify-center ${bgClass} animate-flash overflow-hidden`}>
       <div className="relative w-full text-center animate-cut-in">
         <h1 className={`text-9xl font-brush font-black ${textClass} tracking-widest whitespace-nowrap`}>
-          {hand.label.split(' ')[0]} {/* "ピンゾロ (5倍)" から "ピンゾロ" だけ取る簡易処理 */}
+          {hand.label.split(' ')[0]}
         </h1>
         <p className="text-4xl mt-4 font-mincho text-white font-bold tracking-[1em] opacity-90">{subText}</p>
       </div>
-      {/* パーティクル風の装飾 */}
       <div className="absolute inset-0 pointer-events-none opacity-30 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAiIGhlaWdodD0iMjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9IiNmZmYiLz48L3N2Zz4=')] animate-tumble"></div>
     </div>
   );
@@ -136,12 +141,24 @@ export default function App() {
   };
 
   // --- Betting Phase Logic ---
-  const handleBetChange = (playerId: string, amount: number) => {
+  const handleSetBet = (playerId: string, amount: number) => {
     setState((prev) => ({
       ...prev,
       players: prev.players.map((p) => {
         if (p.id !== playerId) return p;
         const safeAmount = Math.max(0, Math.min(p.balance, amount));
+        return { ...p, currentBet: safeAmount };
+      }),
+    }));
+  };
+
+  const handleAddBet = (playerId: string, amountToAdd: number) => {
+    setState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) => {
+        if (p.id !== playerId) return p;
+        const newAmount = p.currentBet + amountToAdd;
+        const safeAmount = Math.max(0, Math.min(p.balance, newAmount));
         return { ...p, currentBet: safeAmount };
       }),
     }));
@@ -156,6 +173,26 @@ export default function App() {
             ...p, 
             balance: p.balance + amount,
             topUpAmount: p.topUpAmount + amount
+        };
+      }),
+    }));
+  };
+
+  // 返ソシー（借金返済）
+  const handleRepay = (playerId: string, amount: number) => {
+    setState((prev) => ({
+      ...prev,
+      players: prev.players.map((p) => {
+        if (p.id !== playerId) return p;
+        // 返済額は「指定額」「借金額」「所持金」のうち最も小さい額
+        const actualRepay = Math.min(amount, p.topUpAmount, p.balance);
+        
+        if (actualRepay <= 0) return p;
+
+        return {
+          ...p,
+          balance: p.balance - actualRepay,
+          topUpAmount: p.topUpAmount - actualRepay
         };
       }),
     }));
@@ -191,10 +228,8 @@ export default function App() {
     if (state.isRolling || !currentPlayer) return;
 
     setState(prev => ({ ...prev, isRolling: true }));
-
-    // Sound effect placeholder could go here
     
-    const animationDuration = 800; // Slightly longer for realistic feel
+    const animationDuration = 800;
     const intervalTime = 50;
     const steps = animationDuration / intervalTime;
     
@@ -208,11 +243,15 @@ export default function App() {
        }));
     }
 
-    const finalDice = rollDice();
-    const handResult = evaluateHand(finalDice);
+    // Determine Outcome (including 1% Shonben chance)
+    const isShonben = Math.random() < 0.01;
+    let finalDice = rollDice();
+    let handResult = isShonben ? getShonbenHand() : evaluateHand(finalDice);
+
+    // If shonben, maybe scramble dice visually to look weird? 
+    // For now, just keep the rolled dice but the result overrides.
     
-    // カットイン判定（特殊役の場合、少し待機させる）
-    const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI].includes(handResult.type);
+    const isSpecial = [HandType.PINZORO, HandType.ARASHI, HandType.SHIGORO, HandType.HIFUMI, HandType.SHONBEN].includes(handResult.type);
     
     if (isSpecial) {
         setCutInHand(handResult);
@@ -244,11 +283,11 @@ export default function App() {
 
         if (isLastPlayer) {
             const dealer = updatedPlayers[prev.dealerIndex];
-            const dealerHand = dealer.hand || { type: HandType.MENASHI, value: -1, label: '目なし', multiplier: 1 };
+            const dealerHand = dealer.hand || { type: HandType.MENASHI, value: -1, label: '目なし', multiplier: 1, winMultiplier: 1, lossMultiplier: 1 };
 
             const resolvedPlayers = updatedPlayers.map(p => {
                 if (p.isDealer) return { ...p, resultDiff: 0 }; 
-                const pHand = p.hand || { type: HandType.MENASHI, value: -1, label: '目なし', multiplier: 1 };
+                const pHand = p.hand || { type: HandType.MENASHI, value: -1, label: '目なし', multiplier: 1, winMultiplier: 1, lossMultiplier: 1 };
                 const diff = calculateOutcome(dealerHand, pHand, p.currentBet);
                 return { ...p, resultDiff: diff };
             });
@@ -386,13 +425,21 @@ export default function App() {
                         <p className="text-gray-400 font-mono">所持: {dealer.balance.toLocaleString()} ソシー</p>
                         {dealer.topUpAmount > 0 && <span className="text-xs text-red-400">（追: {dealer.topUpAmount.toLocaleString()}）</span>}
                     </div>
-                    <div className="mt-2">
+                    <div className="mt-2 flex gap-2 justify-center">
                         <button 
                             onClick={() => handleTopUp(dealer.id, 10000)}
                             className="text-xs bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-yellow-500 border border-yellow-900"
                         >
-                           + 追いソシー
+                           + 追いソシー (1万)
                         </button>
+                        {dealer.topUpAmount > 0 && dealer.balance > 0 && (
+                            <button 
+                                onClick={() => handleRepay(dealer.id, 10000)}
+                                className="text-xs bg-blue-900/30 hover:bg-blue-900/50 px-2 py-1 rounded text-blue-300 border border-blue-800"
+                            >
+                                - 返ソシー
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -415,14 +462,21 @@ export default function App() {
                                     </div>
                                 </div>
                                 
-                                {/* 追いソシーボタン */}
-                                <div className="flex justify-end">
+                                <div className="flex justify-end gap-2">
                                     <button 
                                         onClick={() => handleTopUp(p.id, 10000)}
                                         className="text-[10px] bg-gray-800 hover:bg-gray-700 px-2 py-1 rounded text-yellow-500 border border-yellow-900 flex items-center gap-1"
                                     >
                                         <span>💰 追いソシー(+1万)</span>
                                     </button>
+                                    {p.topUpAmount > 0 && p.balance > 0 && (
+                                        <button 
+                                            onClick={() => handleRepay(p.id, 10000)}
+                                            className="text-[10px] bg-blue-900/30 hover:bg-blue-900/50 px-2 py-1 rounded text-blue-300 border border-blue-800 flex items-center gap-1"
+                                        >
+                                            <span>💸 返ソシー</span>
+                                        </button>
+                                    )}
                                 </div>
                                 
                                 <div className="bg-black/20 p-3 rounded-lg border border-black/20 inner-shadow">
@@ -430,7 +484,7 @@ export default function App() {
                                     <input 
                                         type="number" 
                                         value={p.currentBet} 
-                                        onChange={(e) => handleBetChange(p.id, parseInt(e.target.value) || 0)}
+                                        onChange={(e) => handleSetBet(p.id, parseInt(e.target.value) || 0)}
                                         className="w-full bg-transparent text-right text-2xl font-bold text-white outline-none font-mono"
                                         min="0"
                                         max={p.balance}
@@ -438,10 +492,10 @@ export default function App() {
                                 </div>
 
                                 <div className="grid grid-cols-4 gap-2">
-                                    <button onClick={() => handleBetChange(p.id, 100)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">+100</button>
-                                    <button onClick={() => handleBetChange(p.id, 1000)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">+1k</button>
-                                    <button onClick={() => handleBetChange(p.id, Math.floor(p.balance / 2))} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition">半額</button>
-                                    <button onClick={() => handleBetChange(p.id, p.balance)} className="bg-red-900/50 hover:bg-red-900/80 text-red-200 py-2 rounded text-xs transition border border-red-900 font-bold">オールイン</button>
+                                    <button onClick={() => handleAddBet(p.id, 100)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition flex flex-col items-center justify-center"><span>+100</span></button>
+                                    <button onClick={() => handleAddBet(p.id, 1000)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition flex flex-col items-center justify-center"><span>+1k</span></button>
+                                    <button onClick={() => handleAddBet(p.id, 10000)} className="bg-white/5 hover:bg-white/10 py-2 rounded text-xs transition flex flex-col items-center justify-center"><span>+10k</span></button>
+                                    <button onClick={() => handleSetBet(p.id, p.balance)} className="bg-red-900/50 hover:bg-red-900/80 text-red-200 py-2 rounded text-xs transition border border-red-900 font-bold">オールイン</button>
                                 </div>
                             </Card>
                         );
@@ -504,7 +558,7 @@ export default function App() {
                         </h2>
                         <div className="h-12 flex items-center justify-center">
                              {currentPlayer.hand && !state.isRolling && !cutInHand && (
-                                 <span className="text-3xl font-bold font-mincho text-yellow-300 animate-stamp filter drop-shadow-[0_0_10px_rgba(234,179,8,0.5)]">
+                                 <span className={`text-3xl font-bold font-mincho animate-stamp filter drop-shadow-[0_0_10px_rgba(234,179,8,0.5)] ${currentPlayer.hand.type === HandType.SHONBEN ? 'text-yellow-600' : 'text-yellow-300'}`}>
                                      {currentPlayer.hand.label}
                                  </span>
                              )}
@@ -527,7 +581,7 @@ export default function App() {
                              </div>
                          </div>
 
-                        {(!currentPlayer.hand || (currentPlayer.hand.type === HandType.MENASHI && currentPlayer.rollCount < 3)) ? (
+                        {(!currentPlayer.hand || ((currentPlayer.hand.type === HandType.MENASHI) && currentPlayer.rollCount < 3)) ? (
                             <Button 
                                 onClick={rollAction}
                                 disabled={state.isRolling || cutInHand !== null}

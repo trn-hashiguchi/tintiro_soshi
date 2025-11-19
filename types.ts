@@ -1,3 +1,4 @@
+
 export enum Phase {
   SETUP = 'SETUP',
   BETTING = 'BETTING',
@@ -10,38 +11,39 @@ export enum HandType {
   ARASHI = 'ARASHI',   // 2-2-2 to 6-6-6 (3x)
   SHIGORO = 'SHIGORO', // 4-5-6 (2x Win)
   POINT = 'POINT',     // Pair + Number (1x)
-  HIFUMI = 'HIFUMI',   // 1-2-3 (2x Loss)
   MENASHI = 'MENASHI', // No score (1x Loss)
+  HIFUMI = 'HIFUMI',   // 1-2-3 (2x Loss)
+  SHONBEN = 'SHONBEN', // Off table (1x Loss, Weakest)
 }
 
 export interface HandResult {
   type: HandType;
-  value: number; // Used for tie-breaking (e.g., the single dice number, or Arashi number)
+  value: number; // Used for tie-breaking
   label: string;
-  multiplier: number; // The payout multiplier
-  isInstantWin?: boolean; // Shigoro
-  isInstantLoss?: boolean; // Hifumi, Menashi
+  multiplier: number; // Legacy support
+  winMultiplier: number; // Payout multiplier if this hand wins
+  lossMultiplier: number; // Payout multiplier if this hand loses
 }
 
 export interface Player {
   id: string;
   name: string;
   balance: number;
-  topUpAmount: number; // Added: Amount of "Oisosi" added
+  topUpAmount: number;
   currentBet: number;
   isDealer: boolean;
   dice: [number, number, number];
   hand: HandResult | null;
   rollCount: number; // 0 to 3
   isTurnFinished: boolean;
-  resultDiff: number; // For displaying result phase + or -
+  resultDiff: number;
 }
 
 export interface GameState {
   phase: Phase;
   players: Player[];
   dealerIndex: number;
-  turnOrder: string[]; // Array of player IDs
-  currentTurnIndex: number; // Index in turnOrder
+  turnOrder: string[];
+  currentTurnIndex: number;
   isRolling: boolean;
 }
