@@ -391,7 +391,7 @@ export default function App() {
   const dealer = state.players[state.dealerIndex];
 
   return (
-    <div className="min-h-screen flex flex-col max-w-6xl mx-auto relative sm:px-4">
+    <div className="min-h-screen flex flex-col max-w-6xl mx-auto relative sm:px-4 pb-8">
       <CutInOverlay hand={cutInHand} onClose={() => setCutInHand(null)} />
 
       {/* Header */}
@@ -521,7 +521,7 @@ export default function App() {
         {state.phase === Phase.ACTION && currentPlayer && (
             <div className="flex-1 flex flex-col items-center justify-center">
                 {/* Turn Order Strip */}
-                <div className="w-full overflow-x-auto mb-6 pb-2 scrollbar-hide">
+                <div className="w-full overflow-x-auto my-2 pb-2 scrollbar-hide">
                     <div className="flex justify-center min-w-max gap-2 px-4">
                         {state.turnOrder.map((pid, idx) => {
                              const p = state.players.find(pl => pl.id === pid);
@@ -547,16 +547,16 @@ export default function App() {
                 </div>
 
                 {/* Main Action Area */}
-                <div className="relative w-full max-w-3xl flex flex-col items-center justify-center gap-4 flex-1">
+                <div className="relative w-full max-w-3xl flex flex-col items-center justify-start gap-2 flex-1">
                     
-                    <div className="text-center space-y-1 z-10">
+                    <div className="text-center space-y-1 z-10 mb-3">
                         <h2 className="text-5xl font-brush font-bold text-white drop-shadow-md flex items-center gap-4">
                             {currentPlayer.name}
                             <span className={`text-lg px-3 py-1 rounded ${currentPlayer.isDealer ? 'bg-red-700 text-white' : 'bg-blue-800 text-white'} opacity-80 font-sans`}>
                                 {currentPlayer.isDealer ? '親' : '子'}
                             </span>
                         </h2>
-                        <div className="h-12 flex items-center justify-center">
+                        <div className="flex items-center justify-center">
                              {currentPlayer.hand && !state.isRolling && !cutInHand && (
                                  <span className={`text-3xl font-bold font-mincho animate-stamp filter drop-shadow-[0_0_10px_rgba(234,179,8,0.5)] ${currentPlayer.hand.type === HandType.SHONBEN ? 'text-yellow-600' : 'text-yellow-300'}`}>
                                      {currentPlayer.hand.label}
@@ -571,7 +571,7 @@ export default function App() {
                     </div>
 
                     {/* Controls */}
-                    <div className="w-full max-w-sm z-10 space-y-4">
+                    <div className="w-full max-w-sm z-10 space-y-4 mt-1">
                          <div className="flex justify-center gap-2 text-gray-400 text-sm uppercase tracking-widest">
                              <span>投擲回数</span>
                              <div className="flex gap-1 items-center">
