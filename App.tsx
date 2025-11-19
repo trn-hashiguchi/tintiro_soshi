@@ -391,7 +391,7 @@ export default function App() {
   const dealer = state.players[state.dealerIndex];
 
   return (
-    <div className="min-h-screen flex flex-col max-w-6xl mx-auto relative">
+    <div className="min-h-screen flex flex-col max-w-6xl mx-auto relative sm:px-4">
       <CutInOverlay hand={cutInHand} onClose={() => setCutInHand(null)} />
 
       {/* Header */}
@@ -519,7 +519,7 @@ export default function App() {
 
         {/* ACTION PHASE */}
         {state.phase === Phase.ACTION && currentPlayer && (
-            <div className="flex-1 flex flex-col items-center">
+            <div className="flex-1 flex flex-col items-center justify-center">
                 {/* Turn Order Strip */}
                 <div className="w-full overflow-x-auto mb-6 pb-2 scrollbar-hide">
                     <div className="flex justify-center min-w-max gap-2 px-4">
@@ -538,7 +538,7 @@ export default function App() {
                                         : 'bg-black/20 text-gray-300 border-gray-600'}
                                     `}
                                  >
-                                     <span className="whitespace-nowrap">{p.name}</span>
+                                     <span className="whitespace-n-wrap">{p.name}</span>
                                      {p.isDealer ? <span className="text-[10px] px-1 bg-red-800/50 rounded font-bold text-white">親</span> : <span className="font-mono text-[10px] opacity-70">{p.currentBet}</span>}
                                  </div>
                              )
@@ -547,7 +547,7 @@ export default function App() {
                 </div>
 
                 {/* Main Action Area */}
-                <div className="relative w-full max-w-3xl flex flex-col items-center justify-center gap-6">
+                <div className="relative w-full max-w-3xl flex flex-col items-center justify-center gap-4 flex-1">
                     
                     <div className="text-center space-y-1 z-10">
                         <h2 className="text-5xl font-brush font-bold text-white drop-shadow-md flex items-center gap-4">
@@ -566,7 +566,7 @@ export default function App() {
                     </div>
 
                     {/* Bowl & Dice */}
-                    <div className="transform scale-100 sm:scale-110 transition-transform duration-500 py-4">
+                    <div className="transform scale-100 sm:scale-110 transition-transform duration-500">
                         <DiceDisplay values={currentPlayer.dice} isShaking={state.isRolling} />
                     </div>
 
