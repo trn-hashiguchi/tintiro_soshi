@@ -395,7 +395,7 @@ export default function App() {
       <CutInOverlay hand={cutInHand} onClose={() => setCutInHand(null)} />
 
       {/* Header */}
-      <header className="flex justify-between items-end px-6 py-4 border-b border-white/10 bg-black/20 backdrop-blur-md sticky top-0 z-50">
+      <header className="flex justify-between items-end px-6 py-2 border-b border-white/10 bg-black sticky top-0 z-50">
         <div>
             <h1 className="text-3xl font-brush font-bold text-yellow-500 tracking-widest">チンチロ</h1>
             <div className="text-xs text-gray-400 uppercase tracking-widest">
@@ -418,7 +418,7 @@ export default function App() {
             <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-fade-in">
                 <div className="text-center mb-4">
                     <div className="inline-block px-6 py-2 bg-black/40 rounded-full border border-yellow-500/30 mb-2">
-                        <span className="text-yellow-500 text-sm uppercase tracking-widest mr-2">DEALER</span>
+                        <span className="text-yellow-500 text-sm uppercase tracking-widest mr-2">親</span>
                         <span className="font-bold text-xl font-mincho">{dealer.name}</span>
                     </div>
                     <div className="flex flex-col items-center">
@@ -573,7 +573,9 @@ export default function App() {
                     {/* Controls */}
                     <div className="w-full max-w-sm z-10 space-y-4 mt-1">
                          <div className="flex justify-center gap-2 text-gray-400 text-sm uppercase tracking-widest">
-                             <span>投擲回数</span>
+                             <span className="w-20 text-center">
+                               {currentPlayer.rollCount < 3 ? `${currentPlayer.rollCount + 1}投目` : '投了'}
+                             </span>
                              <div className="flex gap-1 items-center">
                                  {[1,2,3].map(i => (
                                      <div key={i} className={`w-3 h-3 rounded-full border border-black ${i <= currentPlayer.rollCount ? 'bg-red-500 shadow-[0_0_5px_red]' : 'bg-gray-800'}`}></div>
